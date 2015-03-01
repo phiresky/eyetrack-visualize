@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<script src="//code.jquery.com/jquery-1.11.2.min.js"></script>
+<script src="lib/heatmap.min.js"></script>
+<script src="lib/video.min.js"></script>
+<script src="lib/rangeslider.min.js"></script>
+
+<link href="//vjs.zencdn.net/4.2/video-js.css" rel="stylesheet">
+<link rel=stylesheet href="lib/rangeslider.min.css">
+<style>
+.wrapper {
+	width: 1280px;
+	position: relative;
+	margin: auto;
+}
+.demo-wrapper {
+	height: 720px;
+}
+.heatmap {
+	width: 1280px;
+	height: 720px;
+	pointer-events: none;
+}
+.overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+#ofs {
+	width: 5ex;
+}
+</style>
+
+<div class="wrapper">
+	<div class="demo-wrapper">
+		<video id="vid1" class="overlay video-js vjs-default-skin" controls width="1280" height="720">
+		</video>
+		<div class="overlay heatmap"></div>
+	</div>
+	<div class="demo-controls">
+		<button class="trigger-clear btn">clear heatmap</button>
+		<button class="trigger-refresh btn">draw heatmap for selected range</button>
+		displayed second range:
+		<input type=number id="ofs" value="0.5" step="any" min="0">
+	</div>
+</div>
+
+<script>
+var heatmapInstance;
+var sampleAmount = 6000;
+var videoData;
+var vidEle = $("#vid1"), heatmapEle = $(".heatmap");
+var vid;
+var LOG = false;
+var indexAccuracy = 10; // 2 => 2 groups per second
+var points, secondIndices;
+var interval;
+var secondRange = 0.5;
+
+function delayData(time) {
+	var s = time/1000;
+	var ofs = 0;
+	for(var i = 0; i < videoData.track_offset.length; i++) {
+		if(videoData.track_offset[i][0] > s) break;
+		ofs = videoData.track_offset[i][1];
+	}
+	return time + ofs;
+}
+
+function replaceInterval(a, b) {
+	clearInterval(interval);
+	interval = setInterval(a, b);
+}
+function parseNum(str) {
+	return parseFloat(str.replace(/,/g, "."));
+}
+
+function loadData(callback) {
+	var width = heatmapEle.width();
+	var height = heatmapEle.height();
+	$.getJSON("data.json", function(data) {
+		videoData = data;
+		data.video.forEach(function(video) {
+			$("#vid1").append($("<source>").attr(video));
+		});
+		vid = videojs("vid1");
+		vid.rangeslider({hidden: false});
+		$.get(data.track, function(d) {
+			d = d.split("\n").filter(function(e, i) {
+				return e.length > 0;
+			}).map(function(e) {
+				return e.split("\t");
+			});
+			d.pop(); // ignore last sample
+			points = d.map(function(e) {
+				if (e.length < 2) console.log(e);
+				return {
+					x: width / videoData.width * parseNum(e[1]),
+					y: height / videoData.height * parseNum(e[2]),
+					time: Date.parse(e[0]),
+					value: 1
+				}
+			});
+			secondIndices = [];
+			var first = points[0].time;
+			for (var i = 0, second = -1; i < points.length; i++) {
+				var current = (delayData(points[i].time - first) * indexAccuracy / 1000) | 0;
+				while (current > second) {
+					second++;
+					secondIndices[second] = i;
+				}
+			};
+			callback();
+		});
+	});
+}
+
+function update(range) {
+	if (LOG) console.time("update");
+	var filteredPoints;
+	if (range) {
+		var start = secondIndices[Math.max((range.start * indexAccuracy) | 0, 0)];
+		var end = secondIndices[Math.min((range.end * indexAccuracy) | 0, secondIndices.length)];
+		if (start === undefined || end === undefined) {
+			console.log("no data found for "+[range.start,range.end]);
+		}
+		filteredPoints = points.slice(start, end);
+	} else {
+		filteredPoints = points;
+	}
+	var sampleProbability = sampleAmount / filteredPoints.length;
+	if (LOG) console.log("sampling " + (sampleProbability * 100).toFixed(1) + "%");
+	if (sampleProbability < 1)
+		filteredPoints = filteredPoints.filter(function() {
+			return Math.random() < sampleProbability;
+		});
+	var len = range ? range.end - range.start : secondIndices.length / indexAccuracy;
+	var divConstant = -1.4023e-4 * len * len + 9.237e-1 * len + 5;
+	if (len > 6000) divConstant = 200;
+	heatmapInstance.setData({
+		data: filteredPoints,
+		max: filteredPoints.length / divConstant
+	});
+	if (LOG) console.timeEnd("update");
+};
+
+function withofs() {
+	update({
+		start: vid.currentTime() - secondRange / 2,
+		end: vid.currentTime() + secondRange / 2
+	});
+}
+
+window.onload = function() {
+	heatmapInstance = h337.create({
+		container: heatmapEle[0]
+	});
+	$('.trigger-clear').click(function() {
+		heatmapInstance.setData({
+			data: []
+		});
+	});
+	$('.trigger-refresh').click(function() {
+		update(vid.getValueSlider());
+	});
+	$("#ofs").change(function() {
+		secondRange = $("#ofs").val();
+	});
+	$("video").on("play", function() {
+		replaceInterval(withofs, 100);
+	});
+	$("video").on("pause", function() {
+		clearInterval(interval);
+	});
+	loadData(update);
+};
+</script>
