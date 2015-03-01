@@ -114,7 +114,7 @@ function loadData(callback) {
 			};
 			callback();
 		});
-	});
+	}).fail(function(e){console.error(arguments);});
 }
 
 function update(range) {

@@ -1,0 +1,10 @@
+{
+	"width":1920,
+	"height":1080,
+	"track":"bigbuckbunny-eyeposition.txt",
+	"video": [
+		{"type":"video/mp4", "src":"http://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_640x360.m4v"},
+		{"type":"video/ogg", "src":"http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_stereo.ogg"}
+	],
+	"track_offset":[[0,-100]]
+}
