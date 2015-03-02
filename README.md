@@ -1,5 +1,7 @@
 # eyetrack-visualize
 
+![Screenshot](https://i.imgur.com/9Jc3QAC.png)
+
 Sample result: https://phiresky.github.io/eyetrack-visualize
 
 Tool to visualize a logged eye track from watching a video in the browser.
