@@ -1,6 +1,6 @@
 # eyetrack-visualize
 
-![Screenshot](https://i.imgur.com/9Jc3QAC.png)
+![Screenshot](/example/screenshot.png)
 
 Sample result: https://phiresky.github.io/eyetrack-visualize
 
